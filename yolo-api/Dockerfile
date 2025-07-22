@@ -27,16 +27,14 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy N150-optimized requirements and install Python dependencies
-COPY backend/requirements-n150.txt ./requirements.txt
+# Copy requirements and install Python dependencies
+COPY backend/requirements.txt ./requirements.txt
 # Install PyTorch CPU version first for N150 compatibility
 RUN pip install --no-cache-dir torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY backend/ ./
-# Use N150-optimized app
-COPY backend/app-n150.py ./app.py
 
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/frontend/build ./frontend/build
