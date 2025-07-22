@@ -12,7 +12,7 @@ from PIL import Image
 import io
 import base64
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='/app/frontend/build/static', static_url_path='/static')
 CORS(app)
 
 # Configuration
