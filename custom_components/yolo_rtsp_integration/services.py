@@ -1,11 +1,9 @@
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_component import EntityComponent
-from .camera_fetcher import fetch_single_frame, fetch_frame_sequence, load_manual_image
-from .yolo_inference import load_yolo_model, validate_yolo_model, run_inference
+from .camera_fetcher import fetch_single_frame, fetch_frame_sequence, load_manual_image, set_external_api_url
 from .entities import DetectionImageEntity, ObjectStatusEntity
 import os
-import cv2
 import json
 from datetime import datetime
 

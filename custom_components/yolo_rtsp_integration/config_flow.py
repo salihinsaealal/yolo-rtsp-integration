@@ -5,6 +5,8 @@ from .const import DOMAIN, CONF_CAMERA_URL, CONF_MODEL_PATH, CONF_FETCH_MODE, CO
 
 FETCH_MODES = ["single", "sequence", "manual"]
 
+CONF_API_URL = "external_api_url"
+
 class YoloRtspConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for YOLO RTSP Integration."""
 
@@ -13,10 +15,17 @@ class YoloRtspConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
+            # Require external API URL
+            if not user_input.get(CONF_API_URL):
+                errors[CONF_API_URL] = "External YOLO API URL is required."
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=self._get_schema(user_input.get(CONF_FETCH_MODE)),
+                    errors=errors,
+                )
             # Only require camera_url if not manual mode
             if user_input.get(CONF_FETCH_MODE) != "manual" and not user_input.get(CONF_CAMERA_URL):
                 errors[CONF_CAMERA_URL] = "Camera URL is required unless using manual mode."
-                # Show form again with errors
                 return self.async_show_form(
                     step_id="user",
                     data_schema=self._get_schema(user_input.get(CONF_FETCH_MODE)),
@@ -28,6 +37,27 @@ class YoloRtspConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=self._get_schema(None),
             errors=errors,
         )
+
+    @staticmethod
+    def _get_schema(fetch_mode=None):
+        # Only require camera_url if not manual
+        import voluptuous as vol
+        from .const import CONF_CAMERA_URL
+        if fetch_mode == "manual":
+            return vol.Schema({
+                vol.Required(CONF_API_URL): str,
+                vol.Required(CONF_FETCH_MODE, default="manual"): vol.In(FETCH_MODES),
+                vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
+                vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
+            })
+        else:
+            return vol.Schema({
+                vol.Required(CONF_API_URL): str,
+                vol.Required(CONF_CAMERA_URL): str,
+                vol.Required(CONF_FETCH_MODE, default="single"): vol.In(FETCH_MODES),
+                vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
+                vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
+            })
 
     @staticmethod
     def _get_schema(fetch_mode=None):

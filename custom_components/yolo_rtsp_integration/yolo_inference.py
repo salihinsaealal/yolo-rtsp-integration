@@ -20,13 +20,8 @@ def list_models(base_path: str) -> List[str]:
     return [f for f in os.listdir(model_dir)
             if os.path.isfile(os.path.join(model_dir, f)) and os.path.splitext(f)[1] in MODEL_EXTENSIONS]
 
-import torch
-from typing import Dict, Any, Tuple
-import cv2
-import numpy as np
-
-# Existing: get_model_dir, list_models
-
+# All inference/model logic is now handled by the external YOLO API.
+# This file is now a stub or can be removed if not used by UI.
 def load_yolo_model(model_path: str):
     """Load a YOLO model from file. Supports YOLOv5/YOLOv8 via ultralytics/torch.hub.
     # Baca model YOLO dari fail. Support YOLOv5/v8."""

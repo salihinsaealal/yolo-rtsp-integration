@@ -3,10 +3,7 @@
   "name": "YOLO RTSP Integration",
   "version": "0.1.0",
   "documentation": "https://github.com/yourusername/yolo_rtsp_integration",
-  "requirements": [
-    "opencv-python-headless",
-    "Pillow"
-  ],
+  "requirements": [],
   "dependencies": [],
   "codeowners": ["@yourusername"],
   "config_flow": true,
