@@ -12,9 +12,15 @@ from PIL import Image
 import io
 import base64
 import torch
+import gc
+import psutil
 
-# Fix for PyTorch 2.6 weights_only security issue with YOLOv8 models
-torch.serialization.add_safe_globals(["ultralytics.nn.tasks.DetectionModel"])
+# N150 optimizations
+torch.set_num_threads(2)  # Limit threads for N150
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['MKL_NUM_THREADS'] = '2'
+
+# Note: PyTorch 2.0.1 doesn't have add_safe_globals, but weights_only defaults to False
 
 app = Flask(__name__, static_folder='/app/frontend/build/static', static_url_path='/static')
 CORS(app)
@@ -29,8 +35,21 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# Store loaded models in memory
+# Store loaded models in memory (limit to 1 for N150)
 loaded_models = {}
+MAX_LOADED_MODELS = 1
+
+def get_memory_usage():
+    """Get current memory usage"""
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / 1024 / 1024  # MB
+
+def clear_model_cache():
+    """Clear model cache to free memory"""
+    global loaded_models
+    loaded_models.clear()
+    gc.collect()
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
 def get_model_info(model_path):
     """Get model information"""
@@ -46,21 +65,27 @@ def get_model_info(model_path):
         return None
 
 def load_model(model_path):
-    """Load YOLO model with caching"""
+    """Load YOLO model with caching and memory management"""
+    global loaded_models
+    
+    # Clear cache if we have too many models loaded
+    if len(loaded_models) >= MAX_LOADED_MODELS:
+        clear_model_cache()
+    
     if model_path in loaded_models:
         return loaded_models[model_path]
     
     try:
-        # Set weights_only=False for PyTorch 2.6 compatibility with YOLOv8
-        import torch
-        old_load = torch.load
-        torch.load = lambda *args, **kwargs: old_load(*args, **{**kwargs, 'weights_only': False})
+        print(f"Loading model: {model_path}")
+        print(f"Memory before loading: {get_memory_usage():.1f} MB")
         
+        # Load model with CPU device explicitly (PyTorch 2.0.1 defaults to weights_only=False)
         model = YOLO(model_path)
+        model.to('cpu')  # Ensure CPU inference
+        
         loaded_models[model_path] = model
         
-        # Restore original torch.load
-        torch.load = old_load
+        print(f"Memory after loading: {get_memory_usage():.1f} MB")
         
         return model
     except Exception as e:
@@ -72,6 +97,7 @@ def fetch_rtsp_frame(rtsp_url, timeout=10):
     try:
         cap = cv2.VideoCapture(rtsp_url)
         cap.set(cv2.CAP_PROP_TIMEOUT, timeout * 1000)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer for N150
         
         if not cap.isOpened():
             return None, "Cannot open RTSP stream"
@@ -87,14 +113,28 @@ def fetch_rtsp_frame(rtsp_url, timeout=10):
         return None, str(e)
 
 def run_inference(model, image):
-    """Run YOLO inference on image"""
+    """Run YOLO inference on image with N150 optimizations"""
     try:
-        # Use model.predict() instead of direct model() call for better compatibility
+        print(f"Starting inference, memory: {get_memory_usage():.1f} MB")
+        
+        # Resize image if too large (N150 optimization)
+        h, w = image.shape[:2]
+        if max(h, w) > 640:
+            scale = 640 / max(h, w)
+            new_w, new_h = int(w * scale), int(h * scale)
+            image = cv2.resize(image, (new_w, new_h))
+            print(f"Resized image from {w}x{h} to {new_w}x{new_h}")
+        
+        # Use model.predict() with N150-specific settings
         results = model.predict(
             source=image,
             conf=0.25,
-            verbose=False,  # Reduce output noise
-            device='cpu'    # Force CPU inference for N150 compatibility
+            verbose=False,
+            device='cpu',
+            half=False,  # Disable half precision for CPU
+            augment=False,  # Disable augmentation for speed
+            agnostic_nms=False,  # Standard NMS
+            max_det=100  # Limit detections for memory
         )
         
         # Draw results on image
@@ -125,12 +165,18 @@ def run_inference(model, image):
                     "area": round(relative_area, 4)
                 })
         
+        print(f"Inference complete, memory: {get_memory_usage():.1f} MB")
+        
+        # Force garbage collection after inference
+        gc.collect()
+        
         return annotated_image, detections, None
     except Exception as e:
         print(f"Inference error: {e}")
+        print(f"Memory during error: {get_memory_usage():.1f} MB")
         return None, [], str(e)
 
-# API Routes
+# API Routes (same as original, just using optimized functions)
 
 @app.route('/api/models', methods=['GET'])
 def list_models():
@@ -168,6 +214,9 @@ def upload_model():
         filepath = os.path.join(MODELS_DIR, filename)
         file.save(filepath)
         
+        # Clear model cache when new model is uploaded
+        clear_model_cache()
+        
         # Get model info
         info = get_model_info(filepath)
         
@@ -187,6 +236,7 @@ def delete_model(model_name):
         # Remove from loaded models cache
         if model_path in loaded_models:
             del loaded_models[model_path]
+            gc.collect()
         
         os.remove(model_path)
         
@@ -211,6 +261,8 @@ def download_model(model_name):
 def run_inference_api():
     """Run inference on image or RTSP stream"""
     try:
+        print(f"Inference request received, memory: {get_memory_usage():.1f} MB")
+        
         # Get model name
         model_name = request.form.get('model') or request.json.get('model')
         if not model_name:
@@ -272,7 +324,8 @@ def run_inference_api():
             json.dump({
                 "timestamp": datetime.now().isoformat(),
                 "model": model_name,
-                "detections": detections
+                "detections": detections,
+                "memory_usage_mb": get_memory_usage()
             }, f, indent=2)
         
         return jsonify({
@@ -280,10 +333,12 @@ def run_inference_api():
             "image_base64": img_base64,
             "detections": detections,
             "image_url": f"/api/results/{result_filename}",
-            "json_url": f"/api/results/{json_filename}"
+            "json_url": f"/api/results/{json_filename}",
+            "memory_usage_mb": round(get_memory_usage(), 1)
         })
         
     except Exception as e:
+        print(f"API error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/results/<filename>')
@@ -293,6 +348,15 @@ def get_result(filename):
         return send_from_directory(RESULTS_DIR, filename)
     except Exception as e:
         return jsonify({"error": str(e)}), 404
+
+@app.route('/api/status')
+def get_status():
+    """Get system status"""
+    return jsonify({
+        "memory_usage_mb": round(get_memory_usage(), 1),
+        "loaded_models": len(loaded_models),
+        "torch_threads": torch.get_num_threads()
+    })
 
 # Serve React frontend
 @app.route('/')
@@ -309,4 +373,5 @@ def serve_frontend(path=''):
         return f"Frontend not available: {e}", 404
 
 if __name__ == '__main__':
+    print(f"Starting YOLO API for N150, initial memory: {get_memory_usage():.1f} MB")
     app.run(host='0.0.0.0', port=5000, debug=False)

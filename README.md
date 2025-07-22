@@ -1,60 +1,241 @@
-# YOLO RTSP Integration for Home Assistant
+# YOLO RTSP Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Open in HACS](https://img.shields.io/badge/-Add%20with%20HACS-41BDF5?logo=home-assistant&logoColor=white&style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=salihinsaealal&repository=yolo-rtsp-integration&category=integration)
 [![Open in Home Assistant](https://img.shields.io/badge/-Open%20in%20Home%20Assistant-41BDF5?logo=home-assistant&logoColor=white&style=flat-square)](https://my.home-assistant.io/redirect/integration/?domain=yolo_rtsp_integration)
 [![GitHub Repo](https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white&style=flat-square)](https://github.com/salihinsaealal/yolo-rtsp-integration)
-[![Buy Me a Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?logo=buy-me-a-coffee&logoColor=black&style=flat-square)](https://coff.ee/salihin)
 
-## Overview
+A Home Assistant custom integration for YOLO object detection on RTSP camera streams and manual images. This integration offloads all heavy processing to an external YOLOv8 inference API, keeping your Home Assistant installation lightweight and responsive.
 
-This custom integration for Home Assistant lets you fetch images from any RTSP camera or manual upload, run YOLO object detection (YOLOv5/YOLOv8), and save the results as Home Assistant entities and files. Designed for easy model management, flexible image input, and robust output handling.
+## Architecture
+
+```
+┌─────────────────┐    HTTP API    ┌──────────────────────┐
+│  Home Assistant │ ──────────────► │   YOLO API Platform  │
+│   Integration   │                 │  (Docker Container)  │
+│                 │ ◄────────────── │                      │
+└─────────────────┘   JSON Results  └──────────────────────┘
+        │                                       │
+        │                                       │
+        ▼                                       ▼
+┌─────────────────┐                 ┌──────────────────────┐
+│ RTSP Camera     │                 │ • Model Management   │
+│ Entity/Manual   │                 │ • YOLOv8 Inference   │
+│ Image Upload    │                 │ • React Web UI      │
+└─────────────────┘                 │ • Result Storage     │
+                                    └──────────────────────┘
+```
 
 ## Features
-- Fetch images from RTSP camera (single or sequence)
-- Manual image upload for testing
-- Upload or select YOLO models (multiple formats supported)
-- Run detection via Home Assistant service
-- Save detection images and JSON results
-- Entities for detection image and object status
 
-## Installation
-1. Copy the `yolo_rtsp_integration` folder to your Home Assistant `custom_components` directory, or add this repository to HACS as a custom integration.
-2. Restart Home Assistant.
-3. Configure the integration via the UI.
+### 🏠 Home Assistant Integration
+- **Custom Component**: HACS-compatible installation
+- **Entity Creation**: Detection results as HA entities with attributes
+- **Service Calls**: Trigger inference via HA automations
+- **Media Storage**: Detection images saved to HA media folder
+- **JSON Export**: Detailed detection data for further processing
 
-## Usage
+### 🎯 YOLO Detection
+- **Multiple Input Sources**: RTSP cameras or manual image upload
+- **Model Flexibility**: Upload and manage your own YOLOv8 models
+- **Real-time Processing**: Fast inference with annotated result images
+- **Detection Analytics**: Confidence scores, bounding boxes, object areas
 
-### Service: `yolo_rtsp_integration.process`
-Trigger detection using the Home Assistant service. Example fields:
+### 🚀 External API Platform
+- **Lightweight HA**: No heavy dependencies in Home Assistant
+- **Scalable**: Run on separate hardware (mini PC, NAS, server)
+- **Web Interface**: Beautiful React UI for model management and testing
+- **Hardware Optimized**: CPU-only inference, works on Intel N150 mini PCs
 
+## Quick Start
+
+### 1. Deploy the YOLO API Platform
+
+The inference processing runs in a separate Docker container with a web UI:
+
+```bash
+# Clone the repository
+git clone https://github.com/salihinsaealal/yolo-rtsp-integration.git
+cd yolo-rtsp-integration/yolo-api
+
+# Build and run the API platform
+docker-compose up -d
+
+# Access the web UI
+open http://localhost:5000/ui
 ```
-camera_url: rtsp://your_camera_url
-model_path: /config/custom_components/yolo_rtsp_integration/models/your_model.pt
-fetch_mode: single    # or sequence or manual
-sequence_length: 5    # (if sequence mode)
-frame_interval: 1     # (if sequence mode)
-manual_image: /config/path_to_image.jpg  # (if manual mode)
+
+**📖 For detailed setup instructions, see [YOLO API Documentation](yolo-api/README.md)**
+
+### 2. Install Home Assistant Integration
+
+#### Via HACS (Recommended)
+1. Open HACS in Home Assistant
+2. Go to "Integrations"
+3. Click "Explore & Download Repositories"
+4. Search for "YOLO RTSP Integration"
+5. Download and restart Home Assistant
+
+#### Manual Installation
+1. Copy `custom_components/yolo_rtsp_integration` to your HA config directory
+2. Restart Home Assistant
+3. Go to Settings → Integrations → Add Integration
+4. Search for "YOLO RTSP Integration"
+
+### 3. Configure the Integration
+
+1. **Add Integration**: Settings → Integrations → Add "YOLO RTSP Integration"
+2. **API URL**: Enter your YOLO API URL (e.g., `http://192.168.1.100:5000`)
+3. **Input Mode**: Choose RTSP camera or manual image upload
+4. **RTSP URL**: If using RTSP mode, enter your camera stream URL
+
+### 4. Upload YOLO Models
+
+1. **Access Web UI**: Visit your YOLO API URL (e.g., `http://192.168.1.100:5000/ui`)
+2. **Model Manager**: Upload your YOLOv8 model files (.pt, .onnx, .engine)
+3. **Test Inference**: Use the Inference Tester to verify models work correctly
+
+### 5. Use in Home Assistant
+
+#### Service Calls
+```yaml
+# Run inference on RTSP camera
+service: yolo_rtsp_integration.run_inference
+data:
+  model_name: "yolov8n.pt"
+  # RTSP mode uses configured camera
+  
+# Run inference on manual image
+service: yolo_rtsp_integration.run_inference
+data:
+  model_name: "yolov8n.pt"
+  image_path: "/config/test_image.jpg"
 ```
 
-### Output
-- Detection images and JSON files are saved in `media/yolo_rtsp_integration/`.
-- Entities are created/updated for each detection:
-  - Detection Image (shows path to latest detection image)
-  - Object Status (attributes contain detection results)
+#### Automation Example
+```yaml
+automation:
+  - alias: "Detect Objects on Motion"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.front_door_motion
+        to: "on"
+    action:
+      - service: yolo_rtsp_integration.run_inference
+        data:
+          model_name: "yolov8n.pt"
+      - delay: "00:00:02"
+      - service: notify.mobile_app
+        data:
+          message: "{{ states('sensor.yolo_detection_count') }} objects detected"
+          data:
+            image: "{{ state_attr('sensor.yolo_detection_image', 'file_path') }}"
+```
 
-## Model Management
-- Upload YOLO models via the UI or place them in the `models` folder under the integration directory.
-- Supported formats: `.pt`, `.onnx` (YOLOv5, YOLOv8, etc.)
+## Entities Created
 
-## Example Automation
-You can trigger the service from an automation, script, or manually from Developer Tools > Services.
+The integration creates the following entities:
 
-## Support
-If you find this integration useful, consider buying me a coffee!
+- **`sensor.yolo_detection_count`**: Number of objects detected
+- **`sensor.yolo_detection_image`**: Detection result image with annotations
+- **`sensor.yolo_object_status`**: Detailed detection data (JSON)
 
-[![Buy Me a Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?logo=buy-me-a-coffee&logoColor=black&style=flat-square)](https://coff.ee/salihin)
+## Hardware Requirements
 
----
+### Home Assistant
+- **Minimal**: Standard HA installation requirements
+- **No additional dependencies**: All processing is external
 
-For issues or feature requests, please open an issue on GitHub.
+### YOLO API Platform
+- **Minimum**: 2GB RAM, 2 CPU cores (Intel N150 tested)
+- **Recommended**: 4GB RAM for larger models
+- **Storage**: 5GB+ for Docker images and models
+- **Network**: HTTP access between HA and API platform
+
+## Supported Models
+
+- **YOLOv8n**: Fastest, best for low-power hardware
+- **YOLOv8s**: Good balance of speed and accuracy
+- **YOLOv8m/l/x**: Higher accuracy, requires more resources
+- **Custom Models**: Upload your own trained YOLOv8 models
+- **Formats**: .pt (PyTorch), .onnx, .engine files
+
+## Configuration Options
+
+### Integration Config
+- **API URL**: YOLO API platform endpoint
+- **Input Mode**: RTSP camera or manual image upload
+- **RTSP URL**: Camera stream URL (if using RTSP mode)
+- **Timeout**: API request timeout (default: 60s)
+
+### API Platform Config
+- **Models**: Upload/manage via web UI
+- **Memory Management**: Automatic for low-power hardware
+- **Thread Limiting**: Optimized for CPU inference
+- **Result Storage**: Configurable retention policy
+
+## Troubleshooting
+
+### Common Issues
+
+**Integration not loading:**
+- Check API URL is accessible from Home Assistant
+- Verify YOLO API platform is running: `docker-compose ps`
+- Check HA logs: Settings → System → Logs
+
+**Inference failing:**
+- Test models via YOLO API web UI first
+- Check model format (.pt, .onnx, .engine)
+- Monitor API platform logs: `docker-compose logs -f yolo-api`
+
+**RTSP connection issues:**
+- Test RTSP URL in VLC media player
+- Check network connectivity and firewall
+- Verify RTSP credentials and format
+
+**Performance issues:**
+- Use smaller models (YOLOv8n) for faster inference
+- Monitor system resources on API platform
+- Consider image resizing for large inputs
+
+### Getting Help
+
+1. **Check Logs**: Both HA and API platform logs
+2. **Test API**: Use the web UI to isolate issues
+3. **Hardware Stats**: Monitor CPU/memory usage
+4. **GitHub Issues**: Report bugs with detailed information
+
+## Development
+
+### Project Structure
+```
+├── custom_components/yolo_rtsp_integration/  # Home Assistant integration
+│   ├── __init__.py                          # Integration setup
+│   ├── config_flow.py                       # Configuration UI
+│   ├── entities.py                          # HA entity definitions
+│   ├── services.py                          # Service handlers
+│   └── manifest.json                        # Integration metadata
+└── yolo-api/                                # External API platform
+    ├── backend/                             # Flask API server
+    ├── frontend/                            # React web UI
+    ├── Dockerfile                           # Container build
+    └── docker-compose.yml                   # Deployment config
+```
+
+### Contributing
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/amazing-feature`
+3. **Test thoroughly**: Both HA integration and API platform
+4. **Submit pull request**: With detailed description
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- **Ultralytics**: YOLOv8 implementation
+- **Home Assistant**: Platform and community
+- **React + Material-UI**: Beautiful web interface
+- **Docker**: Containerization and deployment
