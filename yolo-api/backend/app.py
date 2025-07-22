@@ -11,6 +11,10 @@ import shutil
 from PIL import Image
 import io
 import base64
+import torch
+
+# Fix for PyTorch 2.6 weights_only security issue with YOLOv8 models
+torch.serialization.add_safe_globals(["ultralytics.nn.tasks.DetectionModel"])
 
 app = Flask(__name__, static_folder='/app/frontend/build/static', static_url_path='/static')
 CORS(app)
@@ -47,8 +51,17 @@ def load_model(model_path):
         return loaded_models[model_path]
     
     try:
+        # Set weights_only=False for PyTorch 2.6 compatibility with YOLOv8
+        import torch
+        old_load = torch.load
+        torch.load = lambda *args, **kwargs: old_load(*args, **{**kwargs, 'weights_only': False})
+        
         model = YOLO(model_path)
         loaded_models[model_path] = model
+        
+        # Restore original torch.load
+        torch.load = old_load
+        
         return model
     except Exception as e:
         print(f"Error loading model {model_path}: {e}")
