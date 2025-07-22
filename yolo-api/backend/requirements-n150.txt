@@ -3,8 +3,8 @@ flask-cors==4.0.0
 # PyTorch installed separately in Dockerfile
 # Lightweight ultralytics version
 ultralytics==8.0.120
-# Minimal OpenCV
-opencv-python-headless==4.7.1.72
+# Minimal OpenCV (corrected version)
+opencv-python-headless==4.7.0.72
 pillow==9.5.0
 numpy==1.24.3
 # Reduce memory usage
