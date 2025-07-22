@@ -89,7 +89,13 @@ def fetch_rtsp_frame(rtsp_url, timeout=10):
 def run_inference(model, image):
     """Run YOLO inference on image"""
     try:
-        results = model(image)
+        # Use model.predict() instead of direct model() call for better compatibility
+        results = model.predict(
+            source=image,
+            conf=0.25,
+            verbose=False,  # Reduce output noise
+            device='cpu'    # Force CPU inference for N150 compatibility
+        )
         
         # Draw results on image
         annotated_image = results[0].plot()
@@ -121,6 +127,7 @@ def run_inference(model, image):
         
         return annotated_image, detections, None
     except Exception as e:
+        print(f"Inference error: {e}")
         return None, [], str(e)
 
 # API Routes
