@@ -1,0 +1,13 @@
+flask==2.3.3
+flask-cors==4.0.0
+# CPU-only PyTorch for N150 compatibility
+torch==2.0.1+cpu --index-url https://download.pytorch.org/whl/cpu
+torchvision==0.15.2+cpu --index-url https://download.pytorch.org/whl/cpu
+# Lightweight ultralytics version
+ultralytics==8.0.120
+# Minimal OpenCV
+opencv-python-headless==4.7.1.72
+pillow==9.5.0
+numpy==1.24.3
+# Reduce memory usage
+psutil==5.9.5
