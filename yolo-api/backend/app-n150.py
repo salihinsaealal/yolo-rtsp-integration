@@ -20,8 +20,7 @@ torch.set_num_threads(2)  # Limit threads for N150
 os.environ['OMP_NUM_THREADS'] = '2'
 os.environ['MKL_NUM_THREADS'] = '2'
 
-# Fix for PyTorch 2.6 weights_only security issue with YOLOv8 models
-torch.serialization.add_safe_globals(["ultralytics.nn.tasks.DetectionModel"])
+# Note: PyTorch 2.0.1 doesn't have add_safe_globals, but weights_only defaults to False
 
 app = Flask(__name__, static_folder='/app/frontend/build/static', static_url_path='/static')
 CORS(app)
@@ -80,19 +79,11 @@ def load_model(model_path):
         print(f"Loading model: {model_path}")
         print(f"Memory before loading: {get_memory_usage():.1f} MB")
         
-        # Set weights_only=False for PyTorch 2.6 compatibility with YOLOv8
-        import torch
-        old_load = torch.load
-        torch.load = lambda *args, **kwargs: old_load(*args, **{**kwargs, 'weights_only': False})
-        
-        # Load model with CPU device explicitly
+        # Load model with CPU device explicitly (PyTorch 2.0.1 defaults to weights_only=False)
         model = YOLO(model_path)
         model.to('cpu')  # Ensure CPU inference
         
         loaded_models[model_path] = model
-        
-        # Restore original torch.load
-        torch.load = old_load
         
         print(f"Memory after loading: {get_memory_usage():.1f} MB")
         
