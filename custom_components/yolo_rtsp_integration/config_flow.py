@@ -76,18 +76,17 @@ class YoloRtspConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Only require camera_url if not manual
         import voluptuous as vol
         from .const import CONF_CAMERA_URL
-        if fetch_mode == "manual":
-            return vol.Schema({
-                vol.Required(CONF_API_URL, description=FIELD_LABELS[CONF_API_URL]): str,
-                vol.Required(CONF_FETCH_MODE, default="manual"): vol.In(FETCH_MODES),
-                vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
-                vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
-            })
-        else:
-            return vol.Schema({
-                vol.Required(CONF_API_URL, description=FIELD_LABELS[CONF_API_URL]): str,
-                vol.Required(CONF_CAMERA_URL, description=FIELD_LABELS[CONF_CAMERA_URL]): str,
-                vol.Required(CONF_FETCH_MODE, default="single"): vol.In(FETCH_MODES),
-                vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
-                vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
-            })
+        
+        # Base schema with API URL and fetch mode
+        base_schema = {
+            vol.Required(CONF_API_URL, description=FIELD_LABELS[CONF_API_URL]): str,
+            vol.Required(CONF_FETCH_MODE, default="single"): vol.In(FETCH_MODES),
+            vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
+            vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
+        }
+        
+        # Only add camera_url if not manual mode
+        if fetch_mode != "manual":
+            base_schema[vol.Required(CONF_CAMERA_URL, description=FIELD_LABELS[CONF_CAMERA_URL])] = str
+            
+        return vol.Schema(base_schema)
