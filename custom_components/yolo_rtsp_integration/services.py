@@ -64,8 +64,8 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                         image_data = f.read()
                     
                     data = aiohttp.FormData()
-                    data.add_field('file', image_data, filename='image.jpg', content_type='image/jpeg')
-                    data.add_field('model_name', model_name)
+                    data.add_field('image', image_data, filename='image.jpg', content_type='image/jpeg')
+                    data.add_field('model', model_name)
                     
                     async with session.post(f"{api_url}/api/inference", data=data, timeout=60) as resp:
                         if resp.status != 200:
@@ -77,7 +77,7 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                     # RTSP camera mode
                     payload = {
                         "rtsp_url": camera_url,
-                        "model_name": model_name
+                        "model": model_name
                     }
                     
                     async with session.post(f"{api_url}/api/inference", json=payload, timeout=60) as resp:
