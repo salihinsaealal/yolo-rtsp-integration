@@ -91,20 +91,3 @@ class YoloRtspConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
                 vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
             })
-
-    @staticmethod
-    def _get_schema(fetch_mode=None):
-        # Only require camera_url if not manual
-        if fetch_mode == "manual":
-            return vol.Schema({
-                vol.Required(CONF_FETCH_MODE, default="manual"): vol.In(FETCH_MODES),
-                vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
-                vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
-            })
-        else:
-            return vol.Schema({
-                vol.Required(CONF_CAMERA_URL): str,
-                vol.Required(CONF_FETCH_MODE, default="single"): vol.In(FETCH_MODES),
-                vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
-                vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
-            })
