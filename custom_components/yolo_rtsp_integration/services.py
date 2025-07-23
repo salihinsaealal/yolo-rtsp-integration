@@ -24,56 +24,119 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
     component = hass.data["yolo_rtsp_integration"].setdefault("component", EntityComponent(_LOGGER, "yolo_rtsp_integration", hass))
 
     async def handle_process(call: ServiceCall):
-        """Service handler: fetch image(s), run inference, update entities.
-        # Handler servis: ambil gambar, buat inference, update entiti
+        """Service handler: send image to external YOLO API, get results, update entities.
+        # Handler servis: hantar gambar ke API YOLO luaran, dapat hasil, update entiti
         """
-        # Get params from service call or config
-        rtsp_url = call.data.get("camera_url")
-        model_path = call.data.get("model_path")
-        fetch_mode = call.data.get("fetch_mode", "single")
-        sequence_length = int(call.data.get("sequence_length", 5))
-        frame_interval = int(call.data.get("frame_interval", 1))
-        manual_image_path = call.data.get("manual_image")
-        # Fetch image(s)
-        if fetch_mode == "single":
-            frame = fetch_single_frame(rtsp_url)
-            frames = [frame] if frame is not None else []
-        elif fetch_mode == "sequence":
-            frames = fetch_frame_sequence(rtsp_url, count=sequence_length, interval=frame_interval)
-        elif fetch_mode == "manual":
-            frame = load_manual_image(manual_image_path)
-            frames = [frame] if frame is not None else []
-        else:
-            frames = []
-        if not frames:
-            print("No frames fetched. Takde gambar diambil.")
+        _LOGGER.info("YOLO inference service called")
+        
+        # Get params from service call
+        model_name = call.data.get("model_name", "yolov8n.pt")
+        fetch_mode = call.data.get("fetch_mode", "manual")
+        image_path = call.data.get("image_path")  # Fixed parameter name
+        camera_url = call.data.get("camera_url")
+        
+        # Get API URL from integration config
+        config_entries = hass.config_entries.async_entries("yolo_rtsp_integration")
+        if not config_entries:
+            _LOGGER.error("No YOLO integration config found")
             return
-        # Load model
-        model = load_yolo_model(model_path)
-        valid, msg = validate_yolo_model(model)
-        if not valid:
-            print(f"Model not valid: {msg} | Model tak valid: {msg}")
+        
+        api_url = config_entries[0].data.get("external_api_url")
+        if not api_url:
+            _LOGGER.error("No YOLO API URL configured")
             return
-        # Run inference on all frames
-        for idx, frame in enumerate(frames):
-            result_img, detections = run_inference(model, frame)
-            # Save detection image
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            img_filename = f"detect_{timestamp}_{idx+1}.jpg"
-            img_path = os.path.join(MEDIA_DIR, img_filename)
-            cv2.imwrite(img_path, result_img)
-            # Save detection JSON
-            json_filename = f"detect_{timestamp}_{idx+1}.json"
-            json_path = os.path.join(MEDIA_DIR, json_filename)
-            with open(json_path, "w") as jf:
-                json.dump(detections, jf, indent=2)
-            # Update or create entities
-            img_entity = DetectionImageEntity(f"Detection Image {idx+1}", img_path)
-            obj_entity = ObjectStatusEntity(f"Object Status {idx+1}", detections)
-            # Register/update entities in HA
-            await component.async_add_entities([img_entity, obj_entity], update_before_add=True)
-            print(f"Detection image saved: {img_path} | Gambar dikesan disimpan.")
-            print(f"Detection JSON saved: {json_path} | JSON hasil disimpan.")
+            
+        _LOGGER.info(f"Using API URL: {api_url}, Model: {model_name}, Mode: {fetch_mode}")
+        
+        try:
+            import aiohttp
+            
+            async with aiohttp.ClientSession() as session:
+                # Prepare the request based on mode
+                if fetch_mode == "manual" and image_path:
+                    # Manual image upload mode
+                    if not os.path.exists(image_path):
+                        _LOGGER.error(f"Image file not found: {image_path}")
+                        return
+                        
+                    # Read and send image file to API
+                    with open(image_path, 'rb') as f:
+                        image_data = f.read()
+                    
+                    data = aiohttp.FormData()
+                    data.add_field('file', image_data, filename='image.jpg', content_type='image/jpeg')
+                    data.add_field('model_name', model_name)
+                    
+                    async with session.post(f"{api_url}/api/inference", data=data, timeout=60) as resp:
+                        if resp.status != 200:
+                            _LOGGER.error(f"API request failed: {resp.status}")
+                            return
+                        result = await resp.json()
+                        
+                elif fetch_mode in ["single", "sequence"] and camera_url:
+                    # RTSP camera mode
+                    payload = {
+                        "rtsp_url": camera_url,
+                        "model_name": model_name
+                    }
+                    
+                    async with session.post(f"{api_url}/api/inference", json=payload, timeout=60) as resp:
+                        if resp.status != 200:
+                            _LOGGER.error(f"API request failed: {resp.status}")
+                            return
+                        result = await resp.json()
+                else:
+                    _LOGGER.error(f"Invalid mode or missing parameters. Mode: {fetch_mode}, Image: {image_path}, Camera: {camera_url}")
+                    return
+                    
+                # Process API response
+                if "error" in result:
+                    _LOGGER.error(f"API error: {result['error']}")
+                    return
+                    
+                detections = result.get("detections", [])
+                detection_count = len(detections)
+                
+                _LOGGER.info(f"Received {detection_count} detections from API")
+                
+                # Save results and create entities
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # Save detection JSON
+                json_filename = f"detection_{timestamp}.json"
+                json_path = os.path.join(MEDIA_DIR, json_filename)
+                with open(json_path, "w") as jf:
+                    json.dump(result, jf, indent=2)
+                
+                # Download and save annotated image if provided
+                img_path = None
+                if "annotated_image_url" in result:
+                    async with session.get(f"{api_url}{result['annotated_image_url']}") as img_resp:
+                        if img_resp.status == 200:
+                            img_filename = f"detection_{timestamp}.jpg"
+                            img_path = os.path.join(MEDIA_DIR, img_filename)
+                            with open(img_path, "wb") as img_file:
+                                img_file.write(await img_resp.read())
+                            _LOGGER.info(f"Saved annotated image: {img_path}")
+                
+                # Create/update entities
+                detection_count_entity = DetectionImageEntity("YOLO Detection Count", str(detection_count))
+                if img_path:
+                    detection_image_entity = DetectionImageEntity("YOLO Detection Image", img_path)
+                    await component.async_add_entities([detection_image_entity], update_before_add=True)
+                    
+                object_status_entity = ObjectStatusEntity("YOLO Object Status", detections)
+                await component.async_add_entities([detection_count_entity, object_status_entity], update_before_add=True)
+                
+                _LOGGER.info(f"Detection complete: {detection_count} objects found")
+                _LOGGER.info(f"Results saved: {json_path}")
+                if img_path:
+                    _LOGGER.info(f"Image saved: {img_path}")
+                    
+        except Exception as e:
+            _LOGGER.error(f"Error during inference: {str(e)}")
+            import traceback
+            _LOGGER.error(traceback.format_exc())
 
     # Service schema for UI testing
     service_schema = vol.Schema({
