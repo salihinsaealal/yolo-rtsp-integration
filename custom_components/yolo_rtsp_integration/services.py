@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 import logging
 import voluptuous as vol
+import base64
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,21 +116,20 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                 
                 await hass.async_add_executor_job(write_json_file)
                 
-                # Download and save annotated image if provided (async)
+                # Save annotated image from base64 if provided (async)
                 img_path = None
-                if "annotated_image_url" in result:
-                    async with session.get(f"{api_url}{result['annotated_image_url']}") as img_resp:
-                        if img_resp.status == 200:
-                            img_filename = f"detection_{timestamp}.jpg"
-                            img_path = os.path.join(MEDIA_DIR, img_filename)
-                            
-                            def write_image_file():
-                                with open(img_path, "wb") as img_file:
-                                    img_file.write(img_data)
-                            
-                            img_data = await img_resp.read()
-                            await hass.async_add_executor_job(write_image_file)
-                            _LOGGER.info(f"Saved annotated image: {img_path}")
+                if "image_base64" in result:
+                    img_filename = f"detection_{timestamp}.jpg"
+                    img_path = os.path.join(MEDIA_DIR, img_filename)
+                    
+                    def write_base64_image():
+                        # Decode base64 image data
+                        img_data = base64.b64decode(result["image_base64"])
+                        with open(img_path, "wb") as img_file:
+                            img_file.write(img_data)
+                    
+                    await hass.async_add_executor_job(write_base64_image)
+                    _LOGGER.info(f"Saved annotated image from base64: {img_path}")
                 
                 # Create/update entities
                 detection_count_entity = DetectionImageEntity("YOLO Detection Count", str(detection_count))
