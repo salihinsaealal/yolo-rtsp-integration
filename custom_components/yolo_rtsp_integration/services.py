@@ -59,9 +59,12 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                         _LOGGER.error(f"Image file not found: {image_path}")
                         return
                         
-                    # Read and send image file to API
-                    with open(image_path, 'rb') as f:
-                        image_data = f.read()
+                    # Read and send image file to API (async)
+                    def read_image_file():
+                        with open(image_path, 'rb') as f:
+                            return f.read()
+                    
+                    image_data = await hass.async_add_executor_job(read_image_file)
                     
                     data = aiohttp.FormData()
                     data.add_field('image', image_data, filename='image.jpg', content_type='image/jpeg')
@@ -102,21 +105,30 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                 # Save results and create entities
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 
-                # Save detection JSON
+                # Save detection JSON (async)
                 json_filename = f"detection_{timestamp}.json"
                 json_path = os.path.join(MEDIA_DIR, json_filename)
-                with open(json_path, "w") as jf:
-                    json.dump(result, jf, indent=2)
                 
-                # Download and save annotated image if provided
+                def write_json_file():
+                    with open(json_path, "w") as jf:
+                        json.dump(result, jf, indent=2)
+                
+                await hass.async_add_executor_job(write_json_file)
+                
+                # Download and save annotated image if provided (async)
                 img_path = None
                 if "annotated_image_url" in result:
                     async with session.get(f"{api_url}{result['annotated_image_url']}") as img_resp:
                         if img_resp.status == 200:
                             img_filename = f"detection_{timestamp}.jpg"
                             img_path = os.path.join(MEDIA_DIR, img_filename)
-                            with open(img_path, "wb") as img_file:
-                                img_file.write(await img_resp.read())
+                            
+                            def write_image_file():
+                                with open(img_path, "wb") as img_file:
+                                    img_file.write(img_data)
+                            
+                            img_data = await img_resp.read()
+                            await hass.async_add_executor_job(write_image_file)
                             _LOGGER.info(f"Saved annotated image: {img_path}")
                 
                 # Create/update entities
