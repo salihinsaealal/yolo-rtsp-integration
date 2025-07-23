@@ -6,6 +6,9 @@ from .entities import DetectionImageEntity, ObjectStatusEntity
 import os
 import json
 from datetime import datetime
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 # Folder untuk simpan gambar dan json hasil (Folder to save detection images and json)
 MEDIA_DIR = "media/yolo_rtsp_integration"
@@ -17,7 +20,7 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
     if not os.path.exists(MEDIA_DIR):
         os.makedirs(MEDIA_DIR)
 
-    component = hass.data["yolo_rtsp_integration"].setdefault("component", EntityComponent(None, hass, "yolo_rtsp_integration"))
+    component = hass.data["yolo_rtsp_integration"].setdefault("component", EntityComponent(_LOGGER, "yolo_rtsp_integration", hass))
 
     async def handle_process(call: ServiceCall):
         """Service handler: fetch image(s), run inference, update entities.
