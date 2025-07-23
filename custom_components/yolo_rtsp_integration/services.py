@@ -184,4 +184,5 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
         handle_process,
         schema=service_schema
     )
-    print("Service yolo_rtsp_integration.run_inference registered. | Servis didaftarkan.")
+    _LOGGER.info("Service yolo_rtsp_integration.run_inference registered successfully")
+    return True
