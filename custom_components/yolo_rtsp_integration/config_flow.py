@@ -77,16 +77,16 @@ class YoloRtspConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         import voluptuous as vol
         from .const import CONF_CAMERA_URL
         
-        # Base schema with API URL and fetch mode
+        # Base schema with API URL and fetch mode (default to manual)
         base_schema = {
             vol.Required(CONF_API_URL, description=FIELD_LABELS[CONF_API_URL]): str,
-            vol.Required(CONF_FETCH_MODE, default="single"): vol.In(FETCH_MODES),
+            vol.Required(CONF_FETCH_MODE, default="manual"): vol.In(FETCH_MODES),
             vol.Optional(CONF_SEQUENCE_LENGTH, default=5): int,
             vol.Optional(CONF_FRAME_INTERVAL, default=1): int,
         }
         
-        # Only add camera_url if not manual mode
-        if fetch_mode != "manual":
+        # Only add camera_url if not manual mode (and fetch_mode is explicitly set)
+        if fetch_mode is not None and fetch_mode != "manual":
             base_schema[vol.Required(CONF_CAMERA_URL, description=FIELD_LABELS[CONF_CAMERA_URL])] = str
             
         return vol.Schema(base_schema)

@@ -7,6 +7,7 @@ import os
 import json
 from datetime import datetime
 import logging
+import voluptuous as vol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,11 +75,21 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
             print(f"Detection image saved: {img_path} | Gambar dikesan disimpan.")
             print(f"Detection JSON saved: {json_path} | JSON hasil disimpan.")
 
+    # Service schema for UI testing
+    service_schema = vol.Schema({
+        vol.Optional("model_name", default="yolov8n.pt"): str,
+        vol.Optional("camera_url"): str,
+        vol.Optional("image_path"): str,
+        vol.Optional("fetch_mode", default="manual"): vol.In(["single", "sequence", "manual"]),
+        vol.Optional("sequence_length", default=5): int,
+        vol.Optional("frame_interval", default=1): int,
+    })
+    
     # Register the service
     hass.services.async_register(
         "yolo_rtsp_integration",
         "run_inference",
         handle_process,
-        schema=None
+        schema=service_schema
     )
     print("Service yolo_rtsp_integration.run_inference registered. | Servis didaftarkan.")
