@@ -10,7 +10,7 @@ A Home Assistant custom integration for YOLO object detection on RTSP camera str
 ## Architecture
 
 ```
-┌─────────────────┐    HTTP API    ┌──────────────────────┐
+┌─────────────────┐    HTTP API     ┌──────────────────────┐
 │  Home Assistant │ ──────────────► │   YOLO API Platform  │
 │   Integration   │                 │  (Docker Container)  │
 │                 │ ◄────────────── │                      │
@@ -21,7 +21,7 @@ A Home Assistant custom integration for YOLO object detection on RTSP camera str
 ┌─────────────────┐                 ┌──────────────────────┐
 │ RTSP Camera     │                 │ • Model Management   │
 │ Entity/Manual   │                 │ • YOLOv8 Inference   │
-│ Image Upload    │                 │ • React Web UI      │
+│ Image Upload    │                 │ • React Web UI       │
 └─────────────────┘                 │ • Result Storage     │
                                     └──────────────────────┘
 ```

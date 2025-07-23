@@ -23,6 +23,9 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
         os.makedirs(MEDIA_DIR)
 
     component = hass.data["yolo_rtsp_integration"].setdefault("component", EntityComponent(_LOGGER, "yolo_rtsp_integration", hass))
+    
+    # Store entities to reuse them instead of creating new ones
+    entities = hass.data["yolo_rtsp_integration"].setdefault("entities", {})
 
     async def handle_process(call: ServiceCall):
         """Service handler: send image to external YOLO API, get results, update entities.
@@ -131,14 +134,28 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                     await hass.async_add_executor_job(write_base64_image)
                     _LOGGER.info(f"Saved annotated image from base64: {img_path}")
                 
-                # Create/update entities
-                detection_count_entity = DetectionImageEntity("YOLO Detection Count", str(detection_count))
+                # Create/update entities (reuse existing ones)
+                # Detection Count Entity
+                if "detection_count" not in entities:
+                    entities["detection_count"] = DetectionImageEntity("YOLO Detection Count", str(detection_count))
+                    await component.async_add_entities([entities["detection_count"]], update_before_add=True)
+                else:
+                    entities["detection_count"].update_image(str(detection_count))
+                
+                # Detection Image Entity
                 if img_path:
-                    detection_image_entity = DetectionImageEntity("YOLO Detection Image", img_path)
-                    await component.async_add_entities([detection_image_entity], update_before_add=True)
-                    
-                object_status_entity = ObjectStatusEntity("YOLO Object Status", detections)
-                await component.async_add_entities([detection_count_entity, object_status_entity], update_before_add=True)
+                    if "detection_image" not in entities:
+                        entities["detection_image"] = DetectionImageEntity("YOLO Detection Image", img_path)
+                        await component.async_add_entities([entities["detection_image"]], update_before_add=True)
+                    else:
+                        entities["detection_image"].update_image(img_path)
+                
+                # Object Status Entity
+                if "object_status" not in entities:
+                    entities["object_status"] = ObjectStatusEntity("YOLO Object Status", detections)
+                    await component.async_add_entities([entities["object_status"]], update_before_add=True)
+                else:
+                    entities["object_status"].update_detection(detections)
                 
                 _LOGGER.info(f"Detection complete: {detection_count} objects found")
                 _LOGGER.info(f"Results saved: {json_path}")
