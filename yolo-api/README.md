@@ -88,8 +88,27 @@ docker-compose logs -f yolo-api
 
 ### Inference
 - `POST /api/inference` - Run inference
-  - Form data: `model`, `image` (file) OR `rtsp_url`
-  - Returns: annotated image (base64), detections JSON, memory usage
+  - **Parameters**:
+    - `model`: Model filename (e.g., "yolov8n.pt", "best.pt")
+    - `image`: Image file (multipart form data) for manual mode
+    - `rtsp_url`: RTSP stream URL (JSON) for camera mode
+  - **Response Format**:
+    ```json
+    {
+      "detections": [
+        {
+          "class": "person",
+          "confidence": 0.85,
+          "bbox": [100, 150, 200, 300],
+          "area": 15000
+        }
+      ],
+      "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+      "image_url": "/api/results/detection_20250123_181500.jpg",
+      "json_url": "/api/results/detection_20250123_181500.json",
+      "memory_usage": "1.2GB"
+    }
+    ```
 
 ### System
 - `GET /api/status` - System status (memory, loaded models, threads)

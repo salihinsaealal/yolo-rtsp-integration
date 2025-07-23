@@ -98,19 +98,61 @@ open http://localhost:5000/ui
 ### 5. Use in Home Assistant
 
 #### Service Calls
+
+The integration provides the `yolo_rtsp_integration.run_inference` service for triggering object detection:
+
+**Manual Image Mode (Default)**:
 ```yaml
-# Run inference on RTSP camera
 service: yolo_rtsp_integration.run_inference
 data:
-  model_name: "yolov8n.pt"
-  # RTSP mode uses configured camera
-  
-# Run inference on manual image
-service: yolo_rtsp_integration.run_inference
-data:
-  model_name: "yolov8n.pt"
-  image_path: "/config/test_image.jpg"
+  model_name: "best.pt"  # Your uploaded model
+  image_path: "/config/www/test_image.jpg"
+  fetch_mode: "manual"
 ```
+
+**RTSP Camera Mode**:
+```yaml
+service: yolo_rtsp_integration.run_inference
+data:
+  model_name: "yolov8n.pt"
+  camera_url: "rtsp://admin:password@192.168.1.100:554/stream"
+  fetch_mode: "single"
+```
+
+**Service Parameters**:
+- `model_name`: Name of the model file uploaded to the API (default: "yolov8n.pt")
+- `image_path`: Path to image file for manual mode
+- `camera_url`: RTSP URL for camera mode
+- `fetch_mode`: "manual", "single", or "sequence" (default: "manual")
+- `sequence_length`: Number of frames for sequence mode (default: 5)
+- `frame_interval`: Interval between frames in seconds (default: 1)
+
+#### Created Entities
+
+After running inference, the integration creates the following Home Assistant entities:
+
+**Detection Count Sensor**:
+- `sensor.yolo_detection_count`: Number of objects detected
+- State: Integer count (e.g., "3")
+- Updated after each inference run
+
+**Detection Image Sensor**:
+- `sensor.yolo_detection_image`: Path to annotated image
+- State: File path (e.g., "/config/media/yolo_rtsp_integration/detection_20250123_181500.jpg")
+- Contains the annotated image with bounding boxes
+
+**Object Status Sensor**:
+- `sensor.yolo_object_status`: Detailed detection data
+- State: JSON array of detected objects
+- Attributes include: class, confidence, bounding box, area
+
+#### Saved Results
+
+Each inference run saves results to `/config/media/yolo_rtsp_integration/`:
+
+- **JSON Results**: `detection_YYYYMMDD_HHMMSS.json` - Complete detection data
+- **Annotated Images**: `detection_YYYYMMDD_HHMMSS.jpg` - Image with bounding boxes
+- **Automatic Cleanup**: Configurable retention policy via API platform
 
 #### Automation Example
 ```yaml

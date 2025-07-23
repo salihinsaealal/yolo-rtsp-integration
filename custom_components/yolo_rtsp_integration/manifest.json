@@ -1,11 +1,11 @@
 {
   "domain": "yolo_rtsp_integration",
   "name": "YOLO RTSP Integration",
-  "version": "0.1.0",
-  "documentation": "https://github.com/yourusername/yolo_rtsp_integration",
-  "requirements": [],
+  "version": "1.0.0",
+  "documentation": "https://github.com/salihinsaealal/yolo-rtsp-integration",
+  "requirements": ["aiohttp>=3.8.0"],
   "dependencies": [],
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@salihinsaealal"],
   "config_flow": true,
   "iot_class": "local_push",
   "homeassistant": "2023.7.0"
