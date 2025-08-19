@@ -13,14 +13,17 @@ import base64
 _LOGGER = logging.getLogger(__name__)
 
 # Folder untuk simpan gambar dan json hasil (Folder to save detection images and json)
-MEDIA_DIR = "media/yolo_rtsp_integration"
+# NOTE: Files under /config/www are served at /local in the UI
+MEDIA_DIR = "www/yolo_rtsp_integration"
 
 async def async_setup_services(hass: HomeAssistant, integration_dir: str):
     """Register Home Assistant service to trigger inference pipeline.
     # Daftar servis Home Assistant untuk jalankan pipeline inference
     """
-    if not os.path.exists(MEDIA_DIR):
-        os.makedirs(MEDIA_DIR)
+    # Resolve absolute path under Home Assistant config directory
+    media_abs_dir = hass.config.path(MEDIA_DIR)
+    if not os.path.exists(media_abs_dir):
+        os.makedirs(media_abs_dir)
 
     component = hass.data["yolo_rtsp_integration"].setdefault("component", EntityComponent(_LOGGER, "yolo_rtsp_integration", hass))
     
@@ -111,7 +114,7 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                 
                 # Save detection JSON (async)
                 json_filename = f"detection_{timestamp}.json"
-                json_path = os.path.join(MEDIA_DIR, json_filename)
+                json_path = os.path.join(media_abs_dir, json_filename)
                 
                 def write_json_file():
                     with open(json_path, "w") as jf:
@@ -121,9 +124,11 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                 
                 # Save annotated image from base64 if provided (async)
                 img_path = None
+                img_url = None  # Public URL served by HA at /local/...
                 if "image_base64" in result:
                     img_filename = f"detection_{timestamp}.jpg"
-                    img_path = os.path.join(MEDIA_DIR, img_filename)
+                    img_path = os.path.join(media_abs_dir, img_filename)
+                    img_url = f"/local/yolo_rtsp_integration/{img_filename}"
                     
                     def write_base64_image():
                         # Decode base64 image data
@@ -132,7 +137,7 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                             img_file.write(img_data)
                     
                     await hass.async_add_executor_job(write_base64_image)
-                    _LOGGER.info(f"Saved annotated image from base64: {img_path}")
+                    _LOGGER.info(f"Saved annotated image from base64: {img_path} (public: {img_url})")
                 
                 # Create/update entities (reuse existing ones)
                 # Detection Count Entity
@@ -142,13 +147,13 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                 else:
                     entities["detection_count"].update_image(str(detection_count))
                 
-                # Detection Image Entity
-                if img_path:
+                # Detection Image Entity (store public URL for Lovelace usage)
+                if img_url:
                     if "detection_image" not in entities:
-                        entities["detection_image"] = DetectionImageEntity("YOLO Detection Image", img_path)
+                        entities["detection_image"] = DetectionImageEntity("YOLO Detection Image", img_url)
                         await component.async_add_entities([entities["detection_image"]], update_before_add=True)
                     else:
-                        entities["detection_image"].update_image(img_path)
+                        entities["detection_image"].update_image(img_url)
                 
                 # Object Status Entity
                 if "object_status" not in entities:
@@ -160,7 +165,7 @@ async def async_setup_services(hass: HomeAssistant, integration_dir: str):
                 _LOGGER.info(f"Detection complete: {detection_count} objects found")
                 _LOGGER.info(f"Results saved: {json_path}")
                 if img_path:
-                    _LOGGER.info(f"Image saved: {img_path}")
+                    _LOGGER.info(f"Image saved: {img_path} (public: {img_url})")
                     
         except Exception as e:
             _LOGGER.error(f"Error during inference: {str(e)}")
